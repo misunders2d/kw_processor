@@ -6,14 +6,17 @@ Created on Thu Dec 29 20:36:08 2022
 """
 
 import streamlit as st
+from io import BytesIO
 import pyperclip
 import webbrowser
 from datetime import datetime
 import pandas as pd
+from mellanni_modules import format_header
 
 bins = [0.4,0.7]
 labels = ['low','med','high']
 n_clusters = 5
+cerebro_file, ba_file, magnet_file,file_ba_matched,file_ba_missed = None, None,None,None,None
 # add_selectbox = st.sidebar.selectbox(
 #     "How would you like to be contacted?",
 #     ("Email", "Home phone", "Mobile phone")
@@ -107,7 +110,7 @@ def visualize_clusters(df,columns,num_clusters):
     plt.close()
     return None
 
-def process_file(asins,cerebro,ba,magnet,n_clusters,bins):
+def process_file(asins,cerebro,ba,magnet,n_clusters,bins, file_ba_matched = file_ba_matched, file_ba_missed = file_ba_missed):
     bin_labels = [str(int(x*100))+'%' for x in bins]
 
     file = cerebro.copy()
@@ -237,10 +240,9 @@ def process_file(asins,cerebro,ba,magnet,n_clusters,bins):
     lemm, word_freq, vectors = lemmatize(file, 'Keyword Phrase')
     file = pd.merge(file, lemm, how = 'left', on = 'Keyword Phrase')
     file = clusterize(file,vectors,cols = None,num_clusters=8)
-    return file, sums_db
+    return file, sums_db, file_ba_matched,file_ba_missed, word_freq
 
 st.title('Keyword processing tool')
-cerebro_file, ba_file, magnet_file = None, None,None
 asins = st.text_area('Input ASINs').split('\n')
 link = '[Goto Cerebro](https://members.helium10.com/cerebro?accountId=268)'
 st.markdown(link, unsafe_allow_html=True)
@@ -250,13 +252,19 @@ st.markdown(link, unsafe_allow_html=True)
 if st.checkbox('Add Cerebro file'):
     cerebro_file = st.file_uploader('Select Cerebro file')
 if cerebro_file:
-    cerebro = pd.read_csv(cerebro_file)
+    if '.csv' in cerebro_file.name:
+        cerebro = pd.read_csv(cerebro_file)
+    elif '.xlsx' in cerebro_file.name:
+        cerebro = pd.read_excel(cerebro_file)
     st.write(f'Uploaded successfully, file contains {len(cerebro)} rows')
 
 if st.checkbox('Add Brand Analytics file'):
     ba_file = st.file_uploader('Select Brand Analytics file')
 if ba_file:
-    ba = pd.read_csv(ba_file, skiprows = 1)
+    if '.csv' in ba_file.name:
+        ba = pd.read_csv(ba_file, skiprows = 1)
+    elif '.xlsx' in ba_file.name:
+        ba = pd.read_excel(ba_file, skiprows = 1)
     st.write(f'Uploaded successfully, file contains {len(ba)} rows')
 else:
     ba = ''
@@ -264,14 +272,63 @@ else:
 if st.checkbox('Add Magnet file'):
     magnet_file = st.file_uploader('Select Magnet file')
 if magnet_file:
-    magnet = pd.read_csv(magnet_file)
+    if '.csv' in ba_file.name:
+        magnet = pd.read_csv(magnet_file)
+    elif '.xlsx' in ba_file.name:
+        magnet = pd.read_excel(magnet_file)
     st.write(f'Uploaded successfully, file contains {len(magnet)} rows')
 else:
     magnet = ''
 
 if st.button('Process keywords'):
-    file, sums_db = process_file(asins,cerebro,ba,magnet,n_clusters,bins)
+    file, sums_db, file_ba_matched,file_ba_missed, word_freq = process_file(asins,cerebro,ba,magnet,n_clusters,bins)
     st.write('Alpha ASINs',sums_db,'Cerebro results',file)
+    
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        file.to_excel(writer, sheet_name = 'Keywords', index = False)
+        workbook = writer.book
+        worksheet = writer.sheets['Keywords']
+        format_header(file,writer,'Keywords')
+        max_row, max_col = file.shape
+        worksheet.conditional_format(
+            1,max_col-1,max_row,max_col-1,
+            {'type': '3_color_scale','max_color':'red','min_color':'green'})
+        try:
+            magnet_row = len(file)-len(magnet)
+            bg = workbook.add_format({'bg_color': 'red'})
+            worksheet.conditional_format(
+                magnet_row+1,0,max_row,0,{'type':'no_blanks','format':bg})
+        except:
+            pass
+        
+        sums_db.to_excel(writer, sheet_name = 'Alpha ASIN', index = False)
+        format_header(sums_db, writer, 'Alpha ASIN')
+        worksheet = writer.sheets['Alpha ASIN']
+        worksheet.conditional_format(
+            2,0,2,max_col-1,
+            {'type': '3_color_scale','max_color':'red','min_color':'green'})
+        try:
+            file_ba_matched.to_excel(writer, sheet_name = 'BA_match', index = False)
+            format_header(file_ba_matched, writer, 'BA_match')
+            file_ba_missed.to_excel(writer, sheet_name = 'BA_missed', index = False)
+            format_header(file_ba_missed, writer, 'BA_missed')
+        except:
+            pass
+        try:
+            color_kws.to_excel(writer, sheet_name = 'Color KWs', index = False)
+            worksheet = writer.sheets['Color KWs']
+            format_header(color_kws,writer,'Color KWs')
+            max_row, max_col = color_kws.shape
+            worksheet.conditional_format(
+                1,max_col-1,max_row,max_col-1,
+                {'type': '3_color_scale','max_color':'red','min_color':'green'})
+        except:
+            pass
+        word_freq.to_excel(writer, sheet_name = 'word_frequency', index = False)
+        format_header(word_freq, writer, 'word_frequency')    
+    
+    st.download_button('Download results',output.getvalue(), file_name = 'test.xlsx')
 
 # date1,date2 = st.slider(
 #     "Select date range",
