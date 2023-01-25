@@ -20,4 +20,5 @@ if cerebro_file:
     st.write(f'Uploaded successfully, file contains {len(cerebro)} rows')
     asin_list = ', '.join(asins) + ' '
     st.write(asin_list)
+    st.write('Done')
     
