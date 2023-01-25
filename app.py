@@ -6,27 +6,285 @@ Created on Thu Dec 29 20:36:08 2022
 """
 
 import streamlit as st
+import pyperclip
+import webbrowser
 from datetime import datetime
 import pandas as pd
-add_selectbox = st.sidebar.selectbox(
-    "How would you like to be contacted?",
-    ("Email", "Home phone", "Mobile phone")
-)
+
+bins = [0.4,0.7]
+labels = ['low','med','high']
+n_clusters = 5
+# add_selectbox = st.sidebar.selectbox(
+#     "How would you like to be contacted?",
+#     ("Email", "Home phone", "Mobile phone")
+# )
+
+def lemmatize(file, column):
+    import nltk
+    os.system('pip install nltk')
+    if nltk.download('all') == False:
+        nltk.download('all')
+    from nltk.corpus import stopwords
+    from nltk.stem import WordNetLemmatizer
+    from sklearn.feature_extraction.text import CountVectorizer
+    import re
+    kw = file[column].values.tolist()
+    lemmatizer = WordNetLemmatizer()
+    corpus = []
+    for i in range(len(kw)):
+        r = re.sub('[^a-zA-Z]', ' ', kw[i]).lower().split()
+        r = [word for word in r if word not in stopwords.words('english')]
+        r = [lemmatizer.lemmatize(word) for word in r]
+        r = ' '.join(r)
+        corpus.append(r)
+    file['clean kw'] = corpus
+    cv = CountVectorizer()
+    vectors = cv.fit_transform(kw)
+    word_freq = {}
+    for text in corpus:
+        words = text.split(' ')
+        for word in words:
+            if word in word_freq:
+                word_freq[word] +=1
+            else:
+                word_freq[word] = 1
+    word_freq = pd.DataFrame.from_dict(word_freq, orient = 'index').reset_index()
+    word_freq.columns = ['word','frequency']
+    word_freq = word_freq.sort_values('frequency', ascending = False)
+    sums = {}
+    top_words = {}
+    for keyword in corpus:
+        text = keyword.split(' ')
+        score = sum(word_freq[word_freq['word'].isin(text)]['frequency'])
+        sums[keyword] = score
+        top_words[keyword] = ' '.join(word_freq[word_freq['word'].isin(text)].sort_values('frequency', ascending = False)['word'].values[:3])
+    sums = pd.DataFrame.from_dict(sums, orient = 'index', columns = ['frequency score'])
+    top_words = pd.DataFrame.from_dict(top_words, orient = 'index', columns = ['top_word(s)'])
+    file = pd.merge(file, sums, left_on = 'clean kw', right_index = True)
+    file = pd.merge(file, top_words, left_on = 'clean kw', right_index = True)
+    file = file[[column,'frequency score','top_word(s)']]
+    
+    return file, word_freq, vectors
+
+def clusterize(file,vectors,cols,num_clusters):
+    
+    from sklearn.cluster import KMeans
+    model = KMeans(n_clusters = num_clusters)
+    if vectors is not None:
+        model.fit(vectors)
+        file['word similarity'] = model.labels_
+    else:
+        model.fit(file[cols])
+        file['cluster'] = model.labels_
+    return file
+
+def visualize_clusters(df,columns,num_clusters):
+    from matplotlib import pyplot as plt
+    import seaborn as sns
+    sns.set()
+    fig = plt.figure(figsize = (12,10))
+    ax = fig.add_subplot(projection = '3d')
+    # colors = ['b', 'g', 'r', 'c', 'm', 'y', 'k']
+    colors = ['tab:blue','tab:orange','tab:green','tab:red','tab:purple',
+              'tab:brown','tab:pink','tab:gray','tab:olive','tab:cyan']
+    legend = []
+    values = [columns[2],columns[1],columns[0]]
+    for n in range(num_clusters):
+        clustered_df = df[df['cluster'] == n]
+        # sns.scatterplot(x = clustered_df[cols[0]],y= clustered_df[cols[1]], color=colors[n-1],linewidth = 0)
+        ax.scatter(xs = clustered_df[values[0]],
+                   ys = clustered_df[values[1]],
+                   zs = clustered_df[values[2]],
+                   s = 40,depthshade = True,
+                   color=colors[n-1],linewidth = 0)
+        legend.append(n)
+    ax.set_ylim(max(df[columns[1]]),0)
+    ax.set_xlabel(values[0])
+    ax.set_ylabel(values[1])
+    ax.set_zlabel(values[2])
+    ax.view_init(5, -70)
+    ax.legend(legend)
+    plt.tight_layout()
+    plt.savefig(os.path.join(os.getcwd(),'clusters.png'))
+    plt.close()
+    return None
+
+def process_file(asins,cerebro,ba,n_clusters,bins):
+    bin_labels = [str(int(x*100))+'%' for x in bins]
+
+    file = cerebro.copy()
+
+    if 'Position (Rank)' in file.columns.tolist():
+        file[asins[0]] = file['Position (Rank)'].copy()
+        del file['Position (Rank)']
+    
+    stat_columns = ['Keyword Phrase','Keyword Sales','Search Volume','CPR','Ranking Competitors (count)']
+    asin_columns = asins.copy()
+    r = len(stat_columns)
+    all_columns = stat_columns+asin_columns
+    file = file[all_columns]
+    file = file[file['Search Volume'] != '-']
+    file['Search Volume'] = file['Search Volume'].astype(int)
+    file['Keyword Sales'] = file['Keyword Sales'].replace('-',0)
+    file['Keyword Sales'] = file['Keyword Sales'].astype(int)
+    file = file.sort_values('Search Volume', ascending = False)
+    file = file.replace('>306',306).replace('N/R',306).replace('-',306)#.replace(0,306)
+    file.iloc[:,r:] = file.iloc[:,r:].astype(int)
+    file['Top30'] = round(file.iloc[:,r:].isin(range(1,31)).sum(axis = 1)/len(asins),2)
+    file['Top10'] = round(file.iloc[:,r:-1].isin(range(1,11)).sum(axis = 1)/len(asins),2)
+    file['KW conversion'] = round(file['Keyword Sales'] / file['Search Volume'] * 100,2)
+    file['Sales normalized'] = (file['Keyword Sales']-file['Keyword Sales'].min())/(file['Keyword Sales'].max()-file['Keyword Sales'].min())
+    file['Conversion normalized'] = (file['KW conversion']-file['KW conversion'].min())/(file['KW conversion'].max()-file['KW conversion'].min())
+    file['SV normalized'] = (file['Search Volume']-file['Search Volume'].min())/(file['Search Volume'].max()-file['Search Volume'].min())
+    file["Sergey's score"] = round(
+        file['Conversion normalized']*1.1+file['Sales normalized']*.8+file['Top30']*2+file['Top10'],
+        3)
+    file["Sergey's score"] = round(((file["Sergey's score"]-file["Sergey's score"].min())
+                              / (file["Sergey's score"].max()-file["Sergey's score"].min()))*100,1)
+    file = file.sort_values(["Sergey's score"],ascending = False)
+    search_terms = file['Keyword Phrase'].drop_duplicates().tolist()
+
+# define alpha-asins
+    sums = []
+    percs = []
+    for a in asin_columns:
+        n = file.loc[(file[a] < 30)]['Search Volume'].sum()
+        sums.append(n)
+
+    for a in sums:
+        p = a/sum(sums)
+        percs.append(p)
+
+    sums_db = pd.DataFrame([sums,percs], columns = asin_columns)
+    
+    # get Brand Analytics file results
+    try:
+        # try:
+        #     file_ba = pd.read_csv(ba, skiprows=1)
+        # except:
+        #     file_ba = pd.read_excel(ba, skiprows=1)
+        file_ba = ba.copy()
+            
+        file_ba = file_ba.drop('Department', axis = 1)
+        file_ba_missed = file_ba[~file_ba['Search Term'].isin(search_terms)]
+        file_ba_matched = file_ba[file_ba['Search Term'].isin(search_terms)]
+        sv = file.copy()
+        sv = sv[['Keyword Phrase','Search Volume']]
+        sv['Search Term'] = sv['Keyword Phrase'].copy()
+        sv = sv.drop('Keyword Phrase', axis = 1)
+        file_ba_matched = pd.merge(file_ba_matched,sv,on = 'Search Term', how = 'left')
+        
+    except:
+        pass
+
+    #apply boolean conditions to sales,conversion and relevance
+    #alternative way using pandas cut
+    file['sales'] = pd.cut(file['Sales normalized'],
+        bins = [-1,
+            file['Sales normalized'].describe(percentiles = bins)[bin_labels[0]],
+            file['Sales normalized'].describe(percentiles = bins)[bin_labels[1]],
+            1],
+        labels = ['low','med','high']
+        )
+    file['conversion'] = pd.cut(file['Conversion normalized'],
+        bins = [-1,
+            file['Conversion normalized'].describe(percentiles = bins)[bin_labels[0]],
+            file['Conversion normalized'].describe(percentiles = bins)[bin_labels[1]],
+            1],
+        labels = ['low','med','high']
+        )
+
+    file['relevance'] = pd.cut(file['Top30'],bins = 3,labels = labels)
+
+    sales_cols = pd.get_dummies(file['sales'],prefix = 'sales')
+    conversion_cols = pd.get_dummies(file['conversion'],prefix = 'conversion')
+    relevance_cols = pd.get_dummies(file['relevance'],prefix = 'relevance')
+    file = pd.concat([file,sales_cols,conversion_cols,relevance_cols], axis = 1)
+    clusterize_columns = sales_cols.columns.tolist()+conversion_cols.columns.tolist()+relevance_cols.columns.tolist()
+    normalized_columns = ['Sales normalized','Conversion normalized','SV normalized']
+    # feed the file to KMeans model to clusterize
+    
+
+    file = clusterize(file,vectors = None,cols = clusterize_columns,num_clusters = n_clusters)
+    # visualize_clusters(file,columns,n_clusters)
+    file = file.drop(clusterize_columns, axis = 1)
+    file = file.drop(normalized_columns, axis = 1)
+
+    
+    top_kws = file['Keyword Phrase'].head(10).tolist()
+    cerebro_kws = file['Keyword Phrase'].unique()
+    
+    st.text_area('Magnet keyword research', value = "\n".join(top_kws))
+    if st.checkbox('Upload Magnet file'):
+        magnet_file = st.file_uploader("Select the magnet file\n(skip if you don't have magnet file)")
+        if magnet_path is not None and magnet_path != '':
+            try:
+                magnet = pd.read_excel(magnet_path)
+            except:
+                magnet = pd.read_csv(magnet_path)
+        # magnet_kws = magnet['Keyword Phrase'].tolist()
+        magnet = magnet[~magnet['Keyword Phrase'].isin(cerebro_kws)]
+        
+        magnet = magnet[magnet['Search Volume'] != '-']
+        magnet['Search Volume'] = magnet['Search Volume'].str.replace(',','').astype(int)
+        magnet['Keyword Sales'] = magnet['Keyword Sales'].replace('-',0).replace(',','')
+        magnet['Keyword Sales'] = magnet['Keyword Sales'].astype(int)
+        magnet['KW conversion'] = round(magnet['Keyword Sales'] / magnet['Search Volume'] * 100,2)
+        magnet = magnet.sort_values('KW conversion', ascending = False)
+        magnet_cols = magnet.columns.tolist()
+        file_cols = file.columns.tolist()
+        drop_cols = list(set(magnet_cols) - set(file_cols))
+        magnet = magnet.drop(drop_cols,axis = 1)
+        file = pd.concat([file,magnet],axis = 0)
+    else:
+        pass
+
+    ## add colors from dictionary
+    # dictionary = pd.read_excel(d_path,usecols = ['Color','Color Map']).dropna()
+    # dictionary = dictionary.applymap(str.lower)
+    # colors = dictionary['Color'].dropna().unique().tolist()+dictionary['Color Map'].dropna().unique().tolist()
+    # color_kws = file[file['Keyword Phrase'].str.contains(('|').join(colors))]
+
+    #add word counts and frequency scores
+    try:
+        lemm, word_freq, vectors = lemmatize(file, 'Keyword Phrase')
+        file = pd.merge(file, lemm, how = 'left', on = 'Keyword Phrase')
+        file = clusterize(file,vectors,cols = None,num_clusters=8)
+    except:
+        st.warning('Could not lemmatize')
+    return file
 
 st.title('Keyword processing tool')
+cerebro_file, ba_file = None, None
 asins = st.text_area('Input ASINs').split('\n')
-cerebro_file = st.file_uploader('Select Cerebro file')
+if st.button('Copy ASINs and go to Cerebro'):
+    if len(asins)>0:
+        asin_list = ', '.join(asins)+' '
+        pyperclip.copy(asin_list)
+        # window['ASINS'].update(asin_list)
+        webbrowser.open('https://members.helium10.com/cerebro?accountId=268')
+
+if st.checkbox('Add Cerebro file'):
+    cerebro_file = st.file_uploader('Select Cerebro file')
 if cerebro_file:
     cerebro = pd.read_csv(cerebro_file)
     st.write(f'Uploaded successfully, file contains {len(cerebro)} rows')
-    asin_list = ', '.join(asins) + ' '
-    st.write(asin_list)
-    st.write('Done')
-date1,date2 = st.slider(
-    "Select date range",
-    min_value = datetime(2020,1,1), max_value = datetime(2023,1,1),
-    value=(datetime(2021,1,1),datetime(2022,1,1)),
-    format="MM/DD/YY", 
-    )
-st.write("Start time:", date1.strftime("%Y-%m-%d"),' - ', date2.strftime("%Y-%m-%d"))
-    
+
+if st.checkbox('Add Brand Analytics file'):
+    ba_file = st.file_uploader('Select Brand Analytics file')
+if ba_file:
+    ba = pd.read_csv(ba_file)
+    st.write(f'Uploaded successfully, file contains {len(cerebro)} rows')
+else:
+    ba = ''
+if st.button('Process keywords'):
+    file = process_file(asins,cerebro,ba,n_clusters,bins)
+    st.write(file)
+
+# date1,date2 = st.slider(
+#     "Select date range",
+#     min_value = datetime(2020,1,1), max_value = datetime(2023,1,1),
+#     value=(datetime(2021,1,1),datetime(2022,1,1)),
+#     format="MM/DD/YY", 
+#     )
+# st.write("Start time:", date1.strftime("%Y-%m-%d"),' - ', date2.strftime("%Y-%m-%d"))
