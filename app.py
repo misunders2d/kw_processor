@@ -212,7 +212,6 @@ def process_file(asins,cerebro,ba,magnet,n_clusters,bins):
     cerebro_kws = file['Keyword Phrase'].unique()
     
     st.text_area('Magnet keyword research', value = "\n".join(top_kws))
-    magnet_path = st.file_uploader("Select the magnet file")
     if isinstance(magnet,pd.core.frame.DataFrame):
         magnet = magnet[~magnet['Keyword Phrase'].isin(cerebro_kws)]
             
@@ -243,8 +242,10 @@ def process_file(asins,cerebro,ba,magnet,n_clusters,bins):
 st.title('Keyword processing tool')
 cerebro_file, ba_file, magnet_file = None, None,None
 asins = st.text_area('Input ASINs').split('\n')
-if st.button('Go to Cerebro'):
-    webbrowser.open_new_tab('https://members.helium10.com/cerebro?accountId=268')
+link = '[Goto Cerebro](https://members.helium10.com/cerebro?accountId=268)'
+st.markdown(link, unsafe_allow_html=True)
+# if st.button('Go to Cerebro'):
+#     webbrowser.open_new_tab('https://members.helium10.com/cerebro?accountId=268')
 
 if st.checkbox('Add Cerebro file'):
     cerebro_file = st.file_uploader('Select Cerebro file')
