@@ -8,15 +8,16 @@ Created on Thu Dec 29 20:36:08 2022
 import streamlit as st
 from io import BytesIO
 import pyperclip
-import webbrowser
 from datetime import datetime
 import pandas as pd
 from mellanni_modules import format_header
+st.set_page_config(layout="wide")
 
 bins = [0.4,0.7]
 labels = ['low','med','high']
 n_clusters = 5
 cerebro_file, ba_file, magnet_file,file_ba_matched,file_ba_missed = None, None,None,None,None
+example_asins = ['B08CZVWR21','B07N7KFHVH','B08N2RDBHT','B00HHLNRVE','B07M74PH8P']
 # add_selectbox = st.sidebar.selectbox(
 #     "How would you like to be contacted?",
 #     ("Email", "Home phone", "Mobile phone")
@@ -243,11 +244,14 @@ def process_file(asins,cerebro,ba,magnet,n_clusters,bins, file_ba_matched = file
     return file, sums_db, file_ba_matched,file_ba_missed, word_freq
 
 st.title('Keyword processing tool')
-asins = st.text_area('Input ASINs').split('\n')
+asins_area = st.empty()
+asins = asins_area.text_area('Input ASINs. Make sure they are the same ASINs that are included in your Cerebro file').split('\n|" "')
 link = '[Goto Cerebro](https://members.helium10.com/cerebro?accountId=268)'
 st.markdown(link, unsafe_allow_html=True)
-# if st.button('Go to Cerebro'):
-#     webbrowser.open_new_tab('https://members.helium10.com/cerebro?accountId=268')
+if st.button('Load sample ASINs'):
+    asins = asins_area.text_area('Input ASINs. Make sure they are the same ASINs that are included in your Cerebro file','\n'.join(example_asins)).split('\n|" "')
+
+
 
 if st.checkbox('Add Cerebro file (mandatory), .csv or .xlsx supported'):
     cerebro_file = st.file_uploader('Select Cerebro file')
