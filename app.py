@@ -21,8 +21,8 @@ n_clusters = 5
 
 def lemmatize(file, column):
     import nltk
-    if nltk.download('all') == False:
-        nltk.download('all')
+    # if nltk.download('all') == False:
+    #     nltk.download('all')
     from nltk.corpus import stopwords
     from nltk.stem import WordNetLemmatizer
     from sklearn.feature_extraction.text import CountVectorizer
@@ -66,7 +66,6 @@ def lemmatize(file, column):
     return file, word_freq, vectors
 
 def clusterize(file,vectors,cols,num_clusters):
-    
     from sklearn.cluster import KMeans
     model = KMeans(n_clusters = num_clusters)
     if vectors is not None:
@@ -108,7 +107,7 @@ def visualize_clusters(df,columns,num_clusters):
     plt.close()
     return None
 
-def process_file(asins,cerebro,ba,n_clusters,bins):
+def process_file(asins,cerebro,ba,magnet,n_clusters,bins):
     bin_labels = [str(int(x*100))+'%' for x in bins]
 
     file = cerebro.copy()
@@ -154,10 +153,12 @@ def process_file(asins,cerebro,ba,n_clusters,bins):
         p = a/sum(sums)
         percs.append(p)
 
-    sums_db = pd.DataFrame([sums,percs], columns = asin_columns)
+    # sums = [int(float(x.replace(',',''))) for x in sums]
+    sums_db = pd.DataFrame([sums,percs], columns = asin_columns, index = ['Search volume','% share'])
+    sums_db.loc['% share'] = round(sums_db.loc['% share'].astype(float)*100,1)
     
     # get Brand Analytics file results
-    try:
+    if isinstance(ba,pd.core.frame.DataFrame):
         # try:
         #     file_ba = pd.read_csv(ba, skiprows=1)
         # except:
@@ -173,9 +174,6 @@ def process_file(asins,cerebro,ba,n_clusters,bins):
         sv = sv.drop('Keyword Phrase', axis = 1)
         file_ba_matched = pd.merge(file_ba_matched,sv,on = 'Search Term', how = 'left')
         
-    except:
-        pass
-
     #apply boolean conditions to sales,conversion and relevance
     #alternative way using pandas cut
     file['sales'] = pd.cut(file['Sales normalized'],
@@ -214,16 +212,10 @@ def process_file(asins,cerebro,ba,n_clusters,bins):
     cerebro_kws = file['Keyword Phrase'].unique()
     
     st.text_area('Magnet keyword research', value = "\n".join(top_kws))
-    if st.checkbox('Upload Magnet file'):
-        magnet_file = st.file_uploader("Select the magnet file\n(skip if you don't have magnet file)")
-        if magnet_path is not None and magnet_path != '':
-            try:
-                magnet = pd.read_excel(magnet_path)
-            except:
-                magnet = pd.read_csv(magnet_path)
-        # magnet_kws = magnet['Keyword Phrase'].tolist()
+    magnet_path = st.file_uploader("Select the magnet file")
+    if isinstance(magnet,pd.core.frame.DataFrame):
         magnet = magnet[~magnet['Keyword Phrase'].isin(cerebro_kws)]
-        
+            
         magnet = magnet[magnet['Search Volume'] != '-']
         magnet['Search Volume'] = magnet['Search Volume'].str.replace(',','').astype(int)
         magnet['Keyword Sales'] = magnet['Keyword Sales'].replace('-',0).replace(',','')
@@ -235,8 +227,6 @@ def process_file(asins,cerebro,ba,n_clusters,bins):
         drop_cols = list(set(magnet_cols) - set(file_cols))
         magnet = magnet.drop(drop_cols,axis = 1)
         file = pd.concat([file,magnet],axis = 0)
-    else:
-        pass
 
     ## add colors from dictionary
     # dictionary = pd.read_excel(d_path,usecols = ['Color','Color Map']).dropna()
@@ -248,16 +238,13 @@ def process_file(asins,cerebro,ba,n_clusters,bins):
     lemm, word_freq, vectors = lemmatize(file, 'Keyword Phrase')
     file = pd.merge(file, lemm, how = 'left', on = 'Keyword Phrase')
     file = clusterize(file,vectors,cols = None,num_clusters=8)
-    return file
+    return file, sums_db
 
 st.title('Keyword processing tool')
-cerebro_file, ba_file = None, None
+cerebro_file, ba_file, magnet_file = None, None,None
 asins = st.text_area('Input ASINs').split('\n')
-if st.button('Copy ASINs and go to Cerebro'):
+if st.button('Go to Cerebro'):
     if len(asins)>0:
-        asin_list = ', '.join(asins)+' '
-        pyperclip.copy(asin_list)
-        # window['ASINS'].update(asin_list)
         webbrowser.open('https://members.helium10.com/cerebro?accountId=268')
 
 if st.checkbox('Add Cerebro file'):
@@ -269,13 +256,22 @@ if cerebro_file:
 if st.checkbox('Add Brand Analytics file'):
     ba_file = st.file_uploader('Select Brand Analytics file')
 if ba_file:
-    ba = pd.read_csv(ba_file)
-    st.write(f'Uploaded successfully, file contains {len(cerebro)} rows')
+    ba = pd.read_csv(ba_file, skiprows = 1)
+    st.write(f'Uploaded successfully, file contains {len(ba)} rows')
 else:
     ba = ''
+
+if st.checkbox('Add Magnet file'):
+    magnet_file = st.file_uploader('Select Magnet file')
+if magnet_file:
+    magnet = pd.read_csv(magnet_file)
+    st.write(f'Uploaded successfully, file contains {len(magnet)} rows')
+else:
+    magnet = ''
+
 if st.button('Process keywords'):
-    file = process_file(asins,cerebro,ba,n_clusters,bins)
-    st.write(file)
+    file, sums_db = process_file(asins,cerebro,ba,magnet,n_clusters,bins)
+    st.write('Alpha ASINs',sums_db,'Cerebro results',file)
 
 # date1,date2 = st.slider(
 #     "Select date range",
