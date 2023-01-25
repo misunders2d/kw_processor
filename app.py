@@ -249,7 +249,7 @@ st.markdown(link, unsafe_allow_html=True)
 # if st.button('Go to Cerebro'):
 #     webbrowser.open_new_tab('https://members.helium10.com/cerebro?accountId=268')
 
-if st.checkbox('Add Cerebro file'):
+if st.checkbox('Add Cerebro file (mandatory), .csv or .xlsx supported'):
     cerebro_file = st.file_uploader('Select Cerebro file')
 if cerebro_file:
     if '.csv' in cerebro_file.name:
@@ -258,7 +258,7 @@ if cerebro_file:
         cerebro = pd.read_excel(cerebro_file).fillna(0)
     st.write(f'Uploaded successfully, file contains {len(cerebro)} rows')
 
-if st.checkbox('Add Brand Analytics file'):
+if st.checkbox('Add Brand Analytics file (optional), .csv or .xlsx supported'):
     ba_file = st.file_uploader('Select Brand Analytics file')
 if ba_file:
     if '.csv' in ba_file.name:
@@ -269,7 +269,7 @@ if ba_file:
 else:
     ba = ''
 
-if st.checkbox('Add Magnet file'):
+if st.checkbox('Add Magnet file (optional), .csv or .xlsx supported'):
     magnet_file = st.file_uploader('Select Magnet file')
 if magnet_file:
     if '.csv' in ba_file.name:
