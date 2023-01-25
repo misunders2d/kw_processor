@@ -246,12 +246,9 @@ def process_file(asins,cerebro,ba,n_clusters,bins):
     # color_kws = file[file['Keyword Phrase'].str.contains(('|').join(colors))]
 
     #add word counts and frequency scores
-    try:
-        lemm, word_freq, vectors = lemmatize(file, 'Keyword Phrase')
-        file = pd.merge(file, lemm, how = 'left', on = 'Keyword Phrase')
-        file = clusterize(file,vectors,cols = None,num_clusters=8)
-    except:
-        st.warning('Could not lemmatize')
+    lemm, word_freq, vectors = lemmatize(file, 'Keyword Phrase')
+    file = pd.merge(file, lemm, how = 'left', on = 'Keyword Phrase')
+    file = clusterize(file,vectors,cols = None,num_clusters=8)
     return file
 
 st.title('Keyword processing tool')
