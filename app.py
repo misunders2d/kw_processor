@@ -21,7 +21,6 @@ n_clusters = 5
 
 def lemmatize(file, column):
     import nltk
-    os.system('pip install nltk')
     if nltk.download('all') == False:
         nltk.download('all')
     from nltk.corpus import stopwords
