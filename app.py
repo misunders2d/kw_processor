@@ -253,9 +253,9 @@ if st.checkbox('Add Cerebro file'):
     cerebro_file = st.file_uploader('Select Cerebro file')
 if cerebro_file:
     if '.csv' in cerebro_file.name:
-        cerebro = pd.read_csv(cerebro_file)
+        cerebro = pd.read_csv(cerebro_file).fillna(0)
     elif '.xlsx' in cerebro_file.name:
-        cerebro = pd.read_excel(cerebro_file)
+        cerebro = pd.read_excel(cerebro_file).fillna(0)
     st.write(f'Uploaded successfully, file contains {len(cerebro)} rows')
 
 if st.checkbox('Add Brand Analytics file'):
