@@ -244,8 +244,7 @@ st.title('Keyword processing tool')
 cerebro_file, ba_file, magnet_file = None, None,None
 asins = st.text_area('Input ASINs').split('\n')
 if st.button('Go to Cerebro'):
-    if len(asins)>0:
-        webbrowser.open('https://members.helium10.com/cerebro?accountId=268')
+    webbrowser.open('https://members.helium10.com/cerebro?accountId=268')
 
 if st.checkbox('Add Cerebro file'):
     cerebro_file = st.file_uploader('Select Cerebro file')
