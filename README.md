@@ -1,2 +1,2 @@
 # kw_processor
-keyword processing
+Pilot project intended to automate keyword processing routine for Amazon sellers. Data must be downloaded manually by the seller (from Helium10 service and Amazon Brand Analytics reports).

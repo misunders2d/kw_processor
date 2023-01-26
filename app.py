@@ -245,12 +245,13 @@ def process_file(asins,cerebro,ba,magnet,n_clusters,bins, file_ba_matched = file
 
 st.title('Keyword processing tool')
 asins_area = st.empty()
-asins = asins_area.text_area('Input ASINs. Make sure they are the same ASINs that are included in your Cerebro file').split('\n|" "')
+asins = asins_area.text_area('Input ASINs. Make sure they are the same ASINs that are included in your Cerebro file').split('\n')
 link = '[Goto Cerebro](https://members.helium10.com/cerebro?accountId=268)'
 st.markdown(link, unsafe_allow_html=True)
 if st.button('Load sample ASINs'):
-    asins = asins_area.text_area('Input ASINs. Make sure they are the same ASINs that are included in your Cerebro file','\n'.join(example_asins)).split('\n|" "')
-
+    asins = asins_area.text_area('Input ASINs. Make sure they are the same ASINs that are included in your Cerebro file','\n'.join(example_asins)).split('\n')
+asins = [x for x in asins if x != '']
+# st.write(asins)
 
 
 if st.checkbox('Add Cerebro file (mandatory), .csv or .xlsx supported'):
