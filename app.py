@@ -120,7 +120,7 @@ def process_file(asins,cerebro,ba,magnet,n_clusters,bins, file_ba_matched = file
         file[asins[0]] = file['Position (Rank)'].copy()
         del file['Position (Rank)']
     
-    stat_columns = ['Keyword Phrase','Keyword Sales','Search Volume','CPR','Ranking Competitors (count)']
+    stat_columns = ['ABA Total Click Share','H10 PPC Sugg. Bid','Keyword Phrase','Keyword Sales','Search Volume','CPR','Ranking Competitors (count)']
     asin_columns = asins.copy()
     r = len(stat_columns)
     all_columns = stat_columns+asin_columns
