@@ -12,12 +12,12 @@ from datetime import datetime
 import pandas as pd
 import re
 from mellanni_modules import format_header
-st.set_page_config(layout="wide")
+st.set_page_config(page_title = 'Mellanni Keyword processing', page_icon = 'logo.ico',layout="wide")
 
 bins = [0.4,0.7]
 labels = ['low','med','high']
 n_clusters = 5
-cerebro_file, ba_file, magnet_file,file_ba_matched,file_ba_missed = None, None,None,None,None
+file, cerebro_file, ba_file, magnet_file,file_ba_matched,file_ba_missed = None, None,None,None,None,None
 example_asins = ['B08CZVWR21','B07N7KFHVH','B08N2RDBHT','B00HHLNRVE','B07M74PH8P']
 asin_str = '(B[A-Z0-9]{9})'
 cerebro_columns = ['Keyword Phrase', 'ABA Total Click Share', 'ABA Total Conv. Share',
@@ -30,10 +30,6 @@ cerebro_columns = ['Keyword Phrase', 'ABA Total Click Share', 'ABA Total Conv. S
        'Position (Rank)', 'Relative Rank', 'Competitor Rank (avg)',
        'Ranking Competitors (count)', 'Competitor Performance Score']
 
-# add_selectbox = st.sidebar.selectbox(
-#     "How would you like to be contacted?",
-#     ("Email", "Home phone", "Mobile phone")
-# )
 
 def lemmatize(file, column):
     import nltk
@@ -92,46 +88,12 @@ def clusterize(file,vectors,cols,num_clusters):
         file['cluster'] = model.labels_
     return file
 
-def visualize_clusters(df,columns,num_clusters):
-    from matplotlib import pyplot as plt
-    import seaborn as sns
-    sns.set()
-    fig = plt.figure(figsize = (12,10))
-    ax = fig.add_subplot(projection = '3d')
-    # colors = ['b', 'g', 'r', 'c', 'm', 'y', 'k']
-    colors = ['tab:blue','tab:orange','tab:green','tab:red','tab:purple',
-              'tab:brown','tab:pink','tab:gray','tab:olive','tab:cyan']
-    legend = []
-    values = [columns[2],columns[1],columns[0]]
-    for n in range(num_clusters):
-        clustered_df = df[df['cluster'] == n]
-        # sns.scatterplot(x = clustered_df[cols[0]],y= clustered_df[cols[1]], color=colors[n-1],linewidth = 0)
-        ax.scatter(xs = clustered_df[values[0]],
-                   ys = clustered_df[values[1]],
-                   zs = clustered_df[values[2]],
-                   s = 40,depthshade = True,
-                   color=colors[n-1],linewidth = 0)
-        legend.append(n)
-    ax.set_ylim(max(df[columns[1]]),0)
-    ax.set_xlabel(values[0])
-    ax.set_ylabel(values[1])
-    ax.set_zlabel(values[2])
-    ax.view_init(5, -70)
-    ax.legend(legend)
-    plt.tight_layout()
-    plt.savefig(os.path.join(os.getcwd(),'clusters.png'))
-    plt.close()
-    return None
-
+@st.cache(suppress_st_warning=True)
 def process_file(asins,cerebro,ba,magnet,n_clusters,bins, file_ba_matched = file_ba_matched, file_ba_missed = file_ba_missed):
     bin_labels = [str(int(x*100))+'%' for x in bins]
 
     file = cerebro.copy()
-
-    # if 'Position (Rank)' in file.columns.tolist():
-    #     file[asins[0]] = file['Position (Rank)'].copy()
-    #     del file['Position (Rank)']
-    
+   
     stat_columns = ['Keyword Phrase','ABA Total Click Share','H10 PPC Sugg. Bid','Keyword Sales','Search Volume','CPR','Ranking Competitors (count)']
     asin_columns = asins.copy()
     r = len(stat_columns)
@@ -169,16 +131,12 @@ def process_file(asins,cerebro,ba,magnet,n_clusters,bins, file_ba_matched = file
         p = a/sum(sums)
         percs.append(p)
 
-    # sums = [int(float(x.replace(',',''))) for x in sums]
     sums_db = pd.DataFrame([sums,percs], columns = asin_columns, index = ['Keyword Sales','% share by sales'])
     sums_db.loc['% share by sales'] = round(sums_db.loc['% share by sales'].astype(float)*100,1)
     
     # get Brand Analytics file results
     if isinstance(ba,pd.core.frame.DataFrame):
-        # try:
-        #     file_ba = pd.read_csv(ba, skiprows=1)
-        # except:
-        #     file_ba = pd.read_excel(ba, skiprows=1)
+
         file_ba = ba.copy()
             
         file_ba = file_ba.drop('Department', axis = 1)
@@ -215,9 +173,9 @@ def process_file(asins,cerebro,ba,magnet,n_clusters,bins, file_ba_matched = file
     file = pd.concat([file,sales_cols,conversion_cols,competition_cols], axis = 1)
     clusterize_columns = sales_cols.columns.tolist()+conversion_cols.columns.tolist()+competition_cols.columns.tolist()
     normalized_columns = ['Sales normalized','Conversion normalized','SV normalized']
-    # feed the file to KMeans model to clusterize
     
-
+    
+    # feed the file to KMeans model to clusterize
     file = clusterize(file,vectors = None,cols = clusterize_columns,num_clusters = n_clusters)
     # visualize_clusters(file,columns,n_clusters)
     file = file.drop(clusterize_columns, axis = 1)
@@ -257,17 +215,23 @@ def process_file(asins,cerebro,ba,magnet,n_clusters,bins, file_ba_matched = file
 
 st.title('Keyword processing tool')
 asins_area, magnet_words, alpha_asin = st.columns(3)
-# asins = asins_area.text_area('Input ASINs. Make sure they are the same ASINs that are included in your Cerebro file').split('\n')
+
 link = '[Goto Cerebro](https://members.helium10.com/cerebro?accountId=268)'
 st.markdown(link, unsafe_allow_html=True)
-if st.button('Load sample ASINs'):
-    asins = asins_area.text_area('Input ASINs. Make sure they are the same ASINs that are included in your Cerebro file','\n'.join(example_asins)).split('\n')
-# asins = [x for x in asins if x != '']
-# st.write(asins)
+
+df_slot = st.empty()
+
+with st.sidebar:
+    st.header('Apply filters')
+    include = st.text_input('Words to include?',key = 'include')
+    exclude = st.text_input('Words to exclude?', key = 'exclude')
+    if st.button('Clear filters') and 'filtered_df' in st.session_state:
+        del st.session_state['filtered_df']
+        df_slot.write(st.session_state['df'])
+
 
 with st.expander('Upload files'):
-    if st.checkbox('Add Cerebro file (mandatory), .csv or .xlsx supported'):
-        cerebro_file = st.file_uploader('Select Cerebro file')
+    cerebro_file = st.file_uploader('Select Cerebro file')
     if cerebro_file:
         if '.csv' in cerebro_file.name:
             cerebro = pd.read_csv(cerebro_file).fillna(0)
@@ -304,12 +268,12 @@ with st.expander('Upload files'):
     else:
         magnet = ''
 
-if st.button('Process keywords'):
+if st.button('Process keywords') and cerebro_file:
     file, sums_db, file_ba_matched,file_ba_missed, word_freq,asins = process_file(asins,cerebro,ba,magnet,n_clusters,bins)
-    # asins_area.text_area('Input ASINs. Make sure they are the same ASINs that are included in your Cerebro file','\n'.join(example_asins)).split('\n')
     alpha_asin.bar_chart(sums_db.T['% share by sales'])
-    # alpha_asin.text_area('Alpha ASINs', sums_db)
-    st.write('Cerebro results',file)
+    display_file = file.drop(columns = asins)
+    st.session_state['df'] = display_file
+    df_slot.write(display_file)
     
     output = BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
@@ -356,6 +320,25 @@ if st.button('Process keywords'):
         format_header(word_freq, writer, 'word_frequency')    
     
     st.download_button('Download results',output.getvalue(), file_name = 'test.xlsx')
+
+if include != '':
+    if 'filtered_df' in st.session_state:
+        filtered_file = st.session_state['filtered_df']
+    else:
+        filtered_file = st.session_state['df']
+    filtered_file = filtered_file[filtered_file['Keyword Phrase'].str.lower().str.contains(include)]
+    st.session_state['filtered_df'] = filtered_file
+    df_slot.write(filtered_file)
+
+if exclude != '':
+    if 'filtered_df' in st.session_state:
+        filtered_file = st.session_state['filtered_df']
+    else:
+        filtered_file = st.session_state['df']
+    filtered_file = filtered_file[~filtered_file['Keyword Phrase'].str.lower().str.contains(exclude)]
+    st.session_state['filtered_df'] = filtered_file
+    df_slot.write(filtered_file)
+
 
 # date1,date2 = st.slider(
 #     "Select date range",
