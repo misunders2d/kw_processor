@@ -199,13 +199,13 @@ def process_file(cerebro,ba,magnet,n_clusters,bins, file_ba_matched = file_ba_ma
         labels = ['low','med','high']
         )
 
-    file['relevance'] = pd.cut(file['Top30'],bins = 3,labels = labels)
+    file['competition'] = pd.cut(file['Top30'],bins = 3,labels = labels)
 
     sales_cols = pd.get_dummies(file['sales'],prefix = 'sales')
     conversion_cols = pd.get_dummies(file['conversion'],prefix = 'conversion')
-    relevance_cols = pd.get_dummies(file['relevance'],prefix = 'relevance')
-    file = pd.concat([file,sales_cols,conversion_cols,relevance_cols], axis = 1)
-    clusterize_columns = sales_cols.columns.tolist()+conversion_cols.columns.tolist()+relevance_cols.columns.tolist()
+    competition_cols = pd.get_dummies(file['competition'],prefix = 'competition')
+    file = pd.concat([file,sales_cols,conversion_cols,competition_cols], axis = 1)
+    clusterize_columns = sales_cols.columns.tolist()+conversion_cols.columns.tolist()+competition_cols.columns.tolist()
     normalized_columns = ['Sales normalized','Conversion normalized','SV normalized']
     # feed the file to KMeans model to clusterize
     
