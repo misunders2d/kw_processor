@@ -123,7 +123,7 @@ def visualize_clusters(df,columns,num_clusters):
     plt.close()
     return None
 
-def process_file(cerebro,ba,magnet,n_clusters,bins, file_ba_matched = file_ba_matched, file_ba_missed = file_ba_missed):
+def process_file(asins,cerebro,ba,magnet,n_clusters,bins, file_ba_matched = file_ba_matched, file_ba_missed = file_ba_missed):
     bin_labels = [str(int(x*100))+'%' for x in bins]
 
     file = cerebro.copy()
@@ -256,7 +256,7 @@ def process_file(cerebro,ba,magnet,n_clusters,bins, file_ba_matched = file_ba_ma
     return file, sums_db, file_ba_matched,file_ba_missed, word_freq, asins
 
 st.title('Keyword processing tool')
-asins_area = st.empty()
+asins_area, alpha_asin = st.columns(2)
 # asins = asins_area.text_area('Input ASINs. Make sure they are the same ASINs that are included in your Cerebro file').split('\n')
 link = '[Goto Cerebro](https://members.helium10.com/cerebro?accountId=268)'
 st.markdown(link, unsafe_allow_html=True)
@@ -305,9 +305,11 @@ else:
     magnet = ''
 
 if st.button('Process keywords'):
-    file, sums_db, file_ba_matched,file_ba_missed, word_freq = process_file(asins,cerebro,ba,magnet,n_clusters,bins)
+    file, sums_db, file_ba_matched,file_ba_missed, word_freq,asins = process_file(asins,cerebro,ba,magnet,n_clusters,bins)
     # asins_area.text_area('Input ASINs. Make sure they are the same ASINs that are included in your Cerebro file','\n'.join(example_asins)).split('\n')
-    st.write('Alpha ASINs',sums_db,'Cerebro results',file)
+    alpha_asin.write(sums_db)
+    # alpha_asin.text_area('Alpha ASINs', sums_db)
+    st.write('Cerebro results',file)
     
     output = BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
