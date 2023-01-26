@@ -162,7 +162,7 @@ def process_file(asins,cerebro,ba,magnet,n_clusters,bins, file_ba_matched = file
     sums = []
     percs = []
     for a in asin_columns:
-        n = file.loc[(file[a] < 30)]['Search Volume'].sum()
+        n = file.loc[(file[a] < 30)]['Keyword Sales'].sum()
         sums.append(n)
 
     for a in sums:
@@ -170,8 +170,8 @@ def process_file(asins,cerebro,ba,magnet,n_clusters,bins, file_ba_matched = file
         percs.append(p)
 
     # sums = [int(float(x.replace(',',''))) for x in sums]
-    sums_db = pd.DataFrame([sums,percs], columns = asin_columns, index = ['Search volume','% share'])
-    sums_db.loc['% share'] = round(sums_db.loc['% share'].astype(float)*100,1)
+    sums_db = pd.DataFrame([sums,percs], columns = asin_columns, index = ['Keyword Sales','% share by sales'])
+    sums_db.loc['% share by sales'] = round(sums_db.loc['% share by sales'].astype(float)*100,1)
     
     # get Brand Analytics file results
     if isinstance(ba,pd.core.frame.DataFrame):
@@ -185,7 +185,7 @@ def process_file(asins,cerebro,ba,magnet,n_clusters,bins, file_ba_matched = file
         file_ba_missed = file_ba[~file_ba['Search Term'].isin(search_terms)]
         file_ba_matched = file_ba[file_ba['Search Term'].isin(search_terms)]
         sv = file.copy()
-        sv = sv[['Keyword Phrase','Search Volume']]
+        sv = sv[['Keyword Phrase','Keyword Sales']]
         sv['Search Term'] = sv['Keyword Phrase'].copy()
         sv = sv.drop('Keyword Phrase', axis = 1)
         file_ba_matched = pd.merge(file_ba_matched,sv,on = 'Search Term', how = 'left')
@@ -227,7 +227,7 @@ def process_file(asins,cerebro,ba,magnet,n_clusters,bins, file_ba_matched = file
     top_kws = file['Keyword Phrase'].head(10).tolist()
     cerebro_kws = file['Keyword Phrase'].unique()
     
-    st.text_area('Magnet keyword research', value = "\n".join(top_kws))
+    magnet_words.text_area('Magnet keyword research', value = "\n".join(top_kws), height = 250)
     if isinstance(magnet,pd.core.frame.DataFrame):
         magnet = magnet[~magnet['Keyword Phrase'].isin(cerebro_kws)]
             
@@ -256,7 +256,7 @@ def process_file(asins,cerebro,ba,magnet,n_clusters,bins, file_ba_matched = file
     return file, sums_db, file_ba_matched,file_ba_missed, word_freq, asins
 
 st.title('Keyword processing tool')
-asins_area, alpha_asin = st.columns(2)
+asins_area, magnet_words, alpha_asin = st.columns(3)
 # asins = asins_area.text_area('Input ASINs. Make sure they are the same ASINs that are included in your Cerebro file').split('\n')
 link = '[Goto Cerebro](https://members.helium10.com/cerebro?accountId=268)'
 st.markdown(link, unsafe_allow_html=True)
@@ -265,49 +265,49 @@ if st.button('Load sample ASINs'):
 # asins = [x for x in asins if x != '']
 # st.write(asins)
 
+with st.expander('Upload files'):
+    if st.checkbox('Add Cerebro file (mandatory), .csv or .xlsx supported'):
+        cerebro_file = st.file_uploader('Select Cerebro file')
+    if cerebro_file:
+        if '.csv' in cerebro_file.name:
+            cerebro = pd.read_csv(cerebro_file).fillna(0)
+        elif '.xlsx' in cerebro_file.name:
+            cerebro = pd.read_excel(cerebro_file).fillna(0)
+        if all([x in cerebro.columns for x in cerebro_columns]):
+            asins = [re.findall(asin_str, x) for x in cerebro.columns]
+            asins = ['Position (Rank)'] + [x[0] for x in asins if x != []]
+            asins_area.text_area('ASINs in Cerebro file:','\n'.join(asins), height = 250)
+            st.write(f'Uploaded successfully, file contains {len(cerebro)} rows')
+        else:
+            st.warning('This is not a Cerebro file!')
+            st.stop()
 
-if st.checkbox('Add Cerebro file (mandatory), .csv or .xlsx supported'):
-    cerebro_file = st.file_uploader('Select Cerebro file')
-if cerebro_file:
-    if '.csv' in cerebro_file.name:
-        cerebro = pd.read_csv(cerebro_file).fillna(0)
-    elif '.xlsx' in cerebro_file.name:
-        cerebro = pd.read_excel(cerebro_file).fillna(0)
-    if all([x in cerebro.columns for x in cerebro_columns]):
-        asins = [re.findall(asin_str, x) for x in cerebro.columns]
-        asins = ['Position (Rank)'] + [x[0] for x in asins if x != []]
-        asins_area.text_area('ASINs in Cerebro file:','\n'.join(asins))
-        st.write(f'Uploaded successfully, file contains {len(cerebro)} rows')
+    if st.checkbox('Add Brand Analytics file (optional), .csv or .xlsx supported'):
+        ba_file = st.file_uploader('Select Brand Analytics file')
+    if ba_file:
+        if '.csv' in ba_file.name:
+            ba = pd.read_csv(ba_file, skiprows = 1)
+        elif '.xlsx' in ba_file.name:
+            ba = pd.read_excel(ba_file, skiprows = 1)
+        st.write(f'Uploaded successfully, file contains {len(ba)} rows')
     else:
-        st.warning('This is not a Cerebro file!')
-        st.stop()
+        ba = ''
 
-if st.checkbox('Add Brand Analytics file (optional), .csv or .xlsx supported'):
-    ba_file = st.file_uploader('Select Brand Analytics file')
-if ba_file:
-    if '.csv' in ba_file.name:
-        ba = pd.read_csv(ba_file, skiprows = 1)
-    elif '.xlsx' in ba_file.name:
-        ba = pd.read_excel(ba_file, skiprows = 1)
-    st.write(f'Uploaded successfully, file contains {len(ba)} rows')
-else:
-    ba = ''
-
-if st.checkbox('Add Magnet file (optional), .csv or .xlsx supported'):
-    magnet_file = st.file_uploader('Select Magnet file')
-if magnet_file:
-    if '.csv' in ba_file.name:
-        magnet = pd.read_csv(magnet_file)
-    elif '.xlsx' in ba_file.name:
-        magnet = pd.read_excel(magnet_file)
-    st.write(f'Uploaded successfully, file contains {len(magnet)} rows')
-else:
-    magnet = ''
+    if st.checkbox('Add Magnet file (optional), .csv or .xlsx supported'):
+        magnet_file = st.file_uploader('Select Magnet file')
+    if magnet_file:
+        if '.csv' in ba_file.name:
+            magnet = pd.read_csv(magnet_file)
+        elif '.xlsx' in ba_file.name:
+            magnet = pd.read_excel(magnet_file)
+        st.write(f'Uploaded successfully, file contains {len(magnet)} rows')
+    else:
+        magnet = ''
 
 if st.button('Process keywords'):
     file, sums_db, file_ba_matched,file_ba_missed, word_freq,asins = process_file(asins,cerebro,ba,magnet,n_clusters,bins)
     # asins_area.text_area('Input ASINs. Make sure they are the same ASINs that are included in your Cerebro file','\n'.join(example_asins)).split('\n')
-    alpha_asin.write(sums_db)
+    alpha_asin.bar_chart(sums_db.T['% share by sales'])
     # alpha_asin.text_area('Alpha ASINs', sums_db)
     st.write('Cerebro results',file)
     
