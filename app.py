@@ -280,6 +280,7 @@ if cerebro_file:
         st.write(f'Uploaded successfully, file contains {len(cerebro)} rows')
     else:
         st.warning('This is not a Cerebro file!')
+        st.stop()
 
 if st.checkbox('Add Brand Analytics file (optional), .csv or .xlsx supported'):
     ba_file = st.file_uploader('Select Brand Analytics file')
