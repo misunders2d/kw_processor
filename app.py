@@ -19,6 +19,17 @@ labels = ['low','med','high']
 n_clusters = 5
 cerebro_file, ba_file, magnet_file,file_ba_matched,file_ba_missed = None, None,None,None,None
 example_asins = ['B08CZVWR21','B07N7KFHVH','B08N2RDBHT','B00HHLNRVE','B07M74PH8P']
+asin_str = '(B[A-Z0-9]{9})'
+cerebro_columns = ['Keyword Phrase', 'ABA Total Click Share', 'ABA Total Conv. Share',
+       'ABA SFR', 'Keyword Sales', 'Cerebro IQ Score', 'Search Volume',
+       'Search Volume Trend', 'H10 PPC Sugg. Bid', 'H10 PPC Sugg. Min Bid',
+       'H10 PPC Sugg. Max Bid', 'Sponsored ASINs', 'Competing Products', 'CPR',
+       'Title Density', 'Amazon Recommended', 'Sponsored', 'Organic',
+       'Sponsored Rank (avg)', 'Sponsored Rank (count)',
+       'Amazon Recommended Rank (avg)', 'Amazon Recommended Rank (count)',
+       'Position (Rank)', 'Relative Rank', 'Competitor Rank (avg)',
+       'Ranking Competitors (count)', 'Competitor Performance Score']
+
 # add_selectbox = st.sidebar.selectbox(
 #     "How would you like to be contacted?",
 #     ("Email", "Home phone", "Mobile phone")
@@ -116,9 +127,6 @@ def process_file(cerebro,ba,magnet,n_clusters,bins, file_ba_matched = file_ba_ma
     bin_labels = [str(int(x*100))+'%' for x in bins]
 
     file = cerebro.copy()
-    asin_str = '(B[A-Z0-9]{9})'
-    asins = [re.findall(asin_str, x) for x in file.columns]
-    asins = ['Position (Rank)'] + [x[0] for x in asins if x != []]
 
     # if 'Position (Rank)' in file.columns.tolist():
     #     file[asins[0]] = file['Position (Rank)'].copy()
@@ -265,7 +273,13 @@ if cerebro_file:
         cerebro = pd.read_csv(cerebro_file).fillna(0)
     elif '.xlsx' in cerebro_file.name:
         cerebro = pd.read_excel(cerebro_file).fillna(0)
-    st.write(f'Uploaded successfully, file contains {len(cerebro)} rows')
+    if all([x in cerebro.columns for x in cerebro_columns]):
+        asins = [re.findall(asin_str, x) for x in cerebro.columns]
+        asins = ['Position (Rank)'] + [x[0] for x in asins if x != []]
+        asins_area.text_area('ASINs in Cerebro file:','\n'.join(asins))
+        st.write(f'Uploaded successfully, file contains {len(cerebro)} rows')
+    else:
+        st.warning('This is not a Cerebro file!')
 
 if st.checkbox('Add Brand Analytics file (optional), .csv or .xlsx supported'):
     ba_file = st.file_uploader('Select Brand Analytics file')
@@ -290,8 +304,7 @@ else:
     magnet = ''
 
 if st.button('Process keywords'):
-    file, sums_db, file_ba_matched,file_ba_missed, word_freq, asins = process_file(cerebro,ba,magnet,n_clusters,bins)
-    asins_area.text_area('ASINs in Cerebro file:','\n'.join(asins))
+    file, sums_db, file_ba_matched,file_ba_missed, word_freq = process_file(asins,cerebro,ba,magnet,n_clusters,bins)
     # asins_area.text_area('Input ASINs. Make sure they are the same ASINs that are included in your Cerebro file','\n'.join(example_asins)).split('\n')
     st.write('Alpha ASINs',sums_db,'Cerebro results',file)
     
