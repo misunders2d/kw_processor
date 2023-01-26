@@ -10,6 +10,7 @@ from io import BytesIO
 import pyperclip
 from datetime import datetime
 import pandas as pd
+import re
 from mellanni_modules import format_header
 st.set_page_config(layout="wide")
 
@@ -111,14 +112,17 @@ def visualize_clusters(df,columns,num_clusters):
     plt.close()
     return None
 
-def process_file(asins,cerebro,ba,magnet,n_clusters,bins, file_ba_matched = file_ba_matched, file_ba_missed = file_ba_missed):
+def process_file(cerebro,ba,magnet,n_clusters,bins, file_ba_matched = file_ba_matched, file_ba_missed = file_ba_missed):
     bin_labels = [str(int(x*100))+'%' for x in bins]
 
     file = cerebro.copy()
+    asin_str = '(B[A-Z0-9]{9})'
+    asins = [re.findall(asin_str, x) for x in file.columns]
+    asins = ['Position (Rank)'] + [x[0] for x in asins if x != []]
 
-    if 'Position (Rank)' in file.columns.tolist():
-        file[asins[0]] = file['Position (Rank)'].copy()
-        del file['Position (Rank)']
+    # if 'Position (Rank)' in file.columns.tolist():
+    #     file[asins[0]] = file['Position (Rank)'].copy()
+    #     del file['Position (Rank)']
     
     stat_columns = ['Keyword Phrase','ABA Total Click Share','H10 PPC Sugg. Bid','Keyword Sales','Search Volume','CPR','Ranking Competitors (count)']
     asin_columns = asins.copy()
@@ -241,16 +245,16 @@ def process_file(asins,cerebro,ba,magnet,n_clusters,bins, file_ba_matched = file
     lemm, word_freq, vectors = lemmatize(file, 'Keyword Phrase')
     file = pd.merge(file, lemm, how = 'left', on = 'Keyword Phrase')
     file = clusterize(file,vectors,cols = None,num_clusters=8)
-    return file, sums_db, file_ba_matched,file_ba_missed, word_freq
+    return file, sums_db, file_ba_matched,file_ba_missed, word_freq, asins
 
 st.title('Keyword processing tool')
 asins_area = st.empty()
-asins = asins_area.text_area('Input ASINs. Make sure they are the same ASINs that are included in your Cerebro file').split('\n')
+# asins = asins_area.text_area('Input ASINs. Make sure they are the same ASINs that are included in your Cerebro file').split('\n')
 link = '[Goto Cerebro](https://members.helium10.com/cerebro?accountId=268)'
 st.markdown(link, unsafe_allow_html=True)
 if st.button('Load sample ASINs'):
     asins = asins_area.text_area('Input ASINs. Make sure they are the same ASINs that are included in your Cerebro file','\n'.join(example_asins)).split('\n')
-asins = [x for x in asins if x != '']
+# asins = [x for x in asins if x != '']
 # st.write(asins)
 
 
@@ -286,7 +290,9 @@ else:
     magnet = ''
 
 if st.button('Process keywords'):
-    file, sums_db, file_ba_matched,file_ba_missed, word_freq = process_file(asins,cerebro,ba,magnet,n_clusters,bins)
+    file, sums_db, file_ba_matched,file_ba_missed, word_freq, asins = process_file(cerebro,ba,magnet,n_clusters,bins)
+    asins_area.text_area('ASINs in Cerebro file:','\n'.join(asins))
+    # asins_area.text_area('Input ASINs. Make sure they are the same ASINs that are included in your Cerebro file','\n'.join(example_asins)).split('\n')
     st.write('Alpha ASINs',sums_db,'Cerebro results',file)
     
     output = BytesIO()
